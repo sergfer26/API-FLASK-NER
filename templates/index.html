@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="es_MX">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.2">
+  <title>NER API Example</title>
+</head>
+<body>
+  <h1>Aplicación para reconocimiento de entidades nombradas</h1>
+  
+  <!-- Apartado para carga de archivo JSON -->
+  <form id="jsonForm">
+    <label for="jsonFile">Carga de archivo JSON File:</label><br>
+    <input type="file" id="jsonFile" name="jsonFile"><br>
+    <input type="submit" value="Analizar">
+  </form>
+  
+   <!-- Carga de resultados en el servidor -->
+  <h2>Entidades reconocidas:</h2>
+  <ul id="entitiesList"></ul>
+  
+  <!-- Botón para permitir descarga de archvo JSON con resultados -->
+  <button id="downloadButton" style="display: none;">Descarga de resultados (JSON)</button>
+  
+  <!-- Frontend de API (JavaScript) -->
+  <script>
+    let downloadedData = null; // Variable para almacenar información de JSON
+    
+    document.getElementById('jsonForm').addEventListener('submit', async (event) => {
+      // 'listener' para lo forma agregada por el usuario
+      event.preventDefault(); // event.preventDefault() -> evita que no vaya a haber submits vacíos!
+      
+      const formData = new FormData(event.target);
+      const jsonFile = formData.get('jsonFile');
+
+      if (jsonFile) { // Filtra los archivos JSON válidos 
+        try {
+          const fileContent = await jsonFile.text();
+
+          const response = await fetch('/ner-api-flask', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ oraciones: JSON.parse(fileContent).oraciones })
+          });
+
+          if (response.ok) {
+            const data = await response.json();
+            downloadedData = data;
+            displayResults(data.resultado);
+            document.getElementById('downloadButton').style.display = 'block';
+          } else {
+            console.error('Error localizando NER data:', response.statusText);
+          }
+        } catch (error) {
+          console.error('Ocurrió un error:', error);
+        }
+      }
+    });
+
+    function downloadData(filename, data) {
+      // Function to trigger JSON download
+      const jsonBlob = new Blob([JSON.stringify(data)], { type: 'application/json' });
+      const url = URL.createObjectURL(jsonBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function displayResults(results) {
+      // Función para desplegar entidades reconocidas en el servidor Function
+      const entitiesList = document.getElementById('entitiesList');
+      entitiesList.innerHTML = '';
+
+      results.forEach(result => {
+        const li = document.createElement('li');
+        const entities = Object.entries(result.entidades)
+          .map(([text, label]) => `${text} (${label})`)
+          .join(', ');
+        li.textContent = `Oración: ${result.oración} | Entidades: ${entities}`;
+        entitiesList.appendChild(li);
+      });
+    }
+
+    document.getElementById('downloadButton').addEventListener('click', () => {
+      // 'listener' para botón de descarga de resultados
+      if (downloadedData) {
+        downloadData('ner_output.json', downloadedData);
+      }
+    });
+  </script>
+</body>
+</html>
